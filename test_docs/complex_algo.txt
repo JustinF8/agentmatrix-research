@@ -1,0 +1,27 @@
+# High-Frequency Arbitrage Algorithm
+
+This is a complex algorithm for arbitrage between two exchanges.
+
+## Prerequisites
+- Exchange A API Key
+- Exchange B API Key
+- Minimum Profit Threshold (0.5%)
+
+## Execution Flow
+1. Connect to WebSocket streams of Exchange A and Exchange B.
+2. Subscribe to the order book (depth) for BTC/USDT on both exchanges.
+3. Continuously monitor the best bid and best ask prices.
+4. Calculate Spread = (Bid_A - Ask_B) / Ask_B.
+5. If Spread > Threshold:
+    a. Check available balance on both exchanges.
+    b. If balance sufficient:
+        i. Execute Market BUY on Exchange B.
+        ii. Execute Market SELL on Exchange A simultaneously.
+        iii. Log the trade details and profit.
+6. Else if (Bid_B - Ask_A) / Ask_A > Threshold:
+    a. Check available balance.
+    b. If balance sufficient:
+        i. Execute Market BUY on Exchange A.
+        ii. Execute Market SELL on Exchange B simultaneously.
+        iii. Log the trade details.
+7. Repeat loop every 10ms.
