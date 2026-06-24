@@ -1,0 +1,16 @@
+{
+  "factor_name": "demo_reversal_5d",
+  "library": "custom",
+  "version": "1.0.0",
+  "display_name": "5日反转",
+  "source_document": "短期反转因子 — Lehmann (1990) 变体",
+  "formula": "(close_{t-5} - close_t) / close_{t-5}",
+  "description": "过去5个交易日的价格收益率的负值，反映短期反转效应。预期IC为负（跌幅越大，未来收益越高）。",
+  "frequency": "day",
+  "sample_scope": "全市场A股（剔除ST、新股、北交所）",
+  "required_fields": ["close"],
+  "parameters": {"window": 5},
+  "preprocessing": ["前复权价格"],
+  "neutralization": [],
+  "tags": ["reversal", "price", "short-term", "demo"]
+}
