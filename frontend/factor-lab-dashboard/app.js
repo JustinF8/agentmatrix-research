@@ -1348,6 +1348,14 @@ function factorSourceDisplay(factor) {
   };
 }
 
+function isPaperFactor(factor) {
+  const hay = [
+    factor.library, factor.raw_library, factor.factor_name,
+    factor.category, factor.subcategory, factor.source_document,
+  ].map((v) => String(v == null ? "" : v).toLowerCase()).join(" ");
+  return hay.includes("arxiv") || hay.includes("学术复现") || hay.includes("论文");
+}
+
 function renderMonitorStats() {
   const total = state.rawFactors.length;
   const withMetric = state.rawFactors.filter(
@@ -1355,10 +1363,7 @@ function renderMonitorStats() {
   ).length;
   const reusable = state.rawFactors.filter((factor) => factor.reuse_recommendation === "可复用").length;
   const review = state.rawFactors.filter((factor) => monitorBucket(factor) === "weak").length;
-  const arxivFactors = state.rawFactors.filter((factor) => 
-    (factor.library || "").toLowerCase().includes("arxiv") || 
-    (factor.factor_name || "").toLowerCase().includes("arxiv")
-  ).length;
+  const arxivFactors = state.rawFactors.filter(isPaperFactor).length;
 
   const cards = [
     ["all", "总因子数", total, "来自当前 specs 与 runtime 产物"],
@@ -1419,6 +1424,9 @@ function renderMonitor() {
       }
       if (state.monitorCardFilter === "review") {
         return item.bucket === "weak";
+      }
+      if (state.monitorCardFilter === "arxiv") {
+        return isPaperFactor(item.factor);
       }
       return true;
     })
