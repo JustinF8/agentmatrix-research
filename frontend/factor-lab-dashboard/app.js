@@ -849,6 +849,19 @@ function applyFilters() {
 }
 
 function jqFactorCategory(factor) {
+  // 真实因子库(因子 metrics)子库 -> 标准分类精确映射, 与 generate_real_factor_data.py 保持一致
+  const REAL_LIB_CAT = {
+    // 子库来源
+    alpha158: "技术指标因子", alpha101: "动量类因子", gtja191: "技术指标因子",
+    barra: "风险因子-新风格因子", "gp-discovered": "技术指标因子",
+    "学术复现": "技术指标因子", "基础因子": "基础科目及衍生类因子",
+    // 学术类别
+    "规模": "风险因子-风格因子", "网络": "情绪类因子", "流动性": "情绪类因子",
+    "基本面": "质量类因子", "行业": "基础科目及衍生类因子", "技术": "技术指标因子",
+    "反转": "动量类因子", "低波动": "风险类因子", "动量": "动量类因子", "成长": "成长类因子",
+  };
+  const realLib = String(factor.library || factor.raw_library || "").toLowerCase().replace(/\s+/g, "");
+  if (REAL_LIB_CAT[realLib]) return REAL_LIB_CAT[realLib];
   const name = String(factor.raw_factor_name || factor.factor_name || "").toLowerCase();
   if (JQ_CATEGORY_BY_FACTOR[name]) return JQ_CATEGORY_BY_FACTOR[name];
   const subcategory = String(factor.subcategory || "").toLowerCase();
