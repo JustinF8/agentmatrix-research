@@ -1,0 +1,6 @@
+{
+  "libraries": {
+    "alpha101": { "target": 101, "implemented": 101 },
+    "gtja191": { "target": 191, "implemented": 191 }
+  }
+}
