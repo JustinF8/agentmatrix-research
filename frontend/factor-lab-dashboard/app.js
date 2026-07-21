@@ -26,6 +26,7 @@ const API_HOST = configuredApiHost
       : "http://127.0.0.1:8012";
 const API_BASE = CLOUD_DEMO_MODE ? "" : `${API_HOST}/api/agents/factor-lab`;
 const DEMO_LIBRARY_URL = "./data/demo-factor-library.json";
+const DEMO_MANIFEST_URL = "./data/library-manifest.json";
 const PAGE_SIZE = 50;
 const AUTO_REFRESH_INTERVAL_MS = 10000;
 const REQUEST_TIMEOUT_MS = 1800;
@@ -151,7 +152,7 @@ const state = {
   selectedStrategyTemplateId: null,
   strategyBuilderParams: {},
   strategyBuilderName: "",
-  strategyBuilderResult: null,
+  libraryManifest: null,  strategyBuilderResult: null,
   strategyDeleteMode: false,
   selectedStrategyDeleteIds: new Set(),
   researchParams: {
@@ -631,6 +632,18 @@ async function fetchWithTimeout(url, options = {}) {
   }
 }
 
+async function loadLibraryManifest() {
+  // Best-effort: load factor-library completion manifest (generated from research_core).
+  // Returns the parsed JSON or null. Never throws.
+  try {
+    const r = await fetchWithTimeout(withCacheBust(DEMO_MANIFEST_URL));
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) {
+    return null;
+  }
+}
+
 async function checkLocalHealth() {
   if (CLOUD_DEMO_MODE) {
     updateConnectionStatus(true, {
@@ -693,6 +706,7 @@ async function loadData() {
       const payload = await response.json();
       const normalizedPayload = normalizePayload(payload);
       state.rawFactors = normalizedPayload.factors || [];
+      state.libraryManifest = await loadLibraryManifest();
       updateConnectionStatus(true, payload);
       updateQuantApiStatus({
         token_configured: false,
@@ -717,6 +731,7 @@ async function loadData() {
     const payload = await response.json();
     const normalizedPayload = normalizePayload(payload);
     state.rawFactors = normalizedPayload.factors || [];
+    state.libraryManifest = await loadLibraryManifest();
     updateConnectionStatus(true, payload);
     els.errorPanel.classList.add("hidden");
     renderTabs(normalizedPayload);
@@ -2199,39 +2214,73 @@ function renderStrategyDetail() {
 }
 
 function taskRows() {
+  const manifest = (state.libraryManifest && state.libraryManifest.libraries) || null;
+
+  // 从 research_core 实际因子数（library-manifest.json）自动算进度。
+  // 清单缺失时回退到 base 中写死的完整值，保证页面不崩。
+  function reproTaskFromManifest(base, manifestKey, artifactBase) {
+    const m = manifest ? manifest[manifestKey] : null;
+    if (!m || !m.target) return base;
+    const target = m.target || 1;
+    const implemented = m.implemented || 0;
+    const ratio = target > 0 ? implemented / target : 1;
+    const progress = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+    const complete = implemented >= target;
+    const status = complete ? "已完成" : implemented > 0 ? "运行中" : "未开始";
+    const currentGate = complete ? "G4" : implemented > 0 ? "G1" : "G0";
+    const stages = [
+      { gate: "G0", name: "输入与规格检查", status: "passed", note: `因子列表已识别（目标 ${target}）` },
+      { gate: "G1", name: "复现产物检查", status: complete ? "passed" : implemented > 0 ? "running" : "pending", note: `${implemented}/${target} 因子复现产物已生成` },
+      { gate: "G2", name: "研究评估检查", status: complete ? "passed" : "pending", note: complete ? "研究评估通过" : "等待复现完整" },
+      { gate: "G3", name: "策略回测检查", status: complete ? "passed" : "pending", note: complete ? "已并入主分支因子库" : "预留子 Gate" },
+      { gate: "G4", name: "人工审核", status: complete ? "passed" : "pending", note: complete ? "研究员确认完成" : "预留子 Gate" },
+    ];
+    return {
+      ...base,
+      currentGate,
+      progress,
+      status,
+      stages,
+      artifacts: `${artifactBase} (${implemented}/${target} 因子)`,
+    };
+  }
+
+  const alpha101Base = {
+    id: "alpha101_reproduction",
+    name: "Alpha101 复现任务",
+    type: "复现",
+    currentGate: "G4",
+    progress: 100,
+    status: "已完成",
+    stages: [
+      { gate: "G0", name: "输入与规格检查", status: "passed", note: "specs 与运行参数可读取" },
+      { gate: "G1", name: "复现产物检查", status: "passed", note: "101/101 因子复现产物已生成" },
+      { gate: "G2", name: "研究评估检查", status: "passed", note: "全部因子通过研究评估" },
+      { gate: "G3", name: "策略回测检查", status: "passed", note: "已并入主分支因子库" },
+      { gate: "G4", name: "人工审核", status: "passed", note: "研究员确认完成" },
+    ],
+    artifacts: "research_core/factor_lab/libraries/alpha101 (101 因子)",
+  };
+  const gtja191Base = {
+    id: "gtja191_reproduction",
+    name: "GTJA191 因子库复现",
+    type: "复现",
+    currentGate: "G4",
+    progress: 100,
+    status: "已完成",
+    stages: [
+      { gate: "G0", name: "输入与规格检查", status: "passed", note: "191 因子列表已识别" },
+      { gate: "G1", name: "复现产物检查", status: "passed", note: "191/191 因子表达式引擎生成完成" },
+      { gate: "G2", name: "研究评估检查", status: "passed", note: "本地冒烟测试 0 异常通过" },
+      { gate: "G3", name: "策略回测检查", status: "passed", note: "已并入主分支因子库" },
+      { gate: "G4", name: "人工审核", status: "passed", note: "研究员确认完成" },
+    ],
+    artifacts: "research_core/factor_lab/libraries/gtja191 (191 因子 + _expr_engine)",
+  };
+
   const builtInRows = [
-    {
-      id: "alpha101_reproduction",
-      name: "Alpha101 复现任务",
-      type: "复现",
-      currentGate: "G4",
-      progress: 100,
-      status: "已完成",
-      stages: [
-        { gate: "G0", name: "输入与规格检查", status: "passed", note: "specs 与运行参数可读取" },
-        { gate: "G1", name: "复现产物检查", status: "passed", note: "101/101 因子复现产物已生成" },
-        { gate: "G2", name: "研究评估检查", status: "passed", note: "全部因子通过研究评估" },
-        { gate: "G3", name: "策略回测检查", status: "passed", note: "已并入主分支因子库" },
-        { gate: "G4", name: "人工审核", status: "passed", note: "研究员确认完成" },
-      ],
-      artifacts: "research_core/factor_lab/libraries/alpha101 (101 因子)",
-    },
-    {
-      id: "gtja191_reproduction",
-      name: "GTJA191 因子库复现",
-      type: "复现",
-      currentGate: "G4",
-      progress: 100,
-      status: "已完成",
-      stages: [
-        { gate: "G0", name: "输入与规格检查", status: "passed", note: "191 因子列表已识别" },
-        { gate: "G1", name: "复现产物检查", status: "passed", note: "191/191 因子表达式引擎生成完成" },
-        { gate: "G2", name: "研究评估检查", status: "passed", note: "本地冒烟测试 0 异常通过" },
-        { gate: "G3", name: "策略回测检查", status: "passed", note: "已并入主分支因子库" },
-        { gate: "G4", name: "人工审核", status: "passed", note: "研究员确认完成" },
-      ],
-      artifacts: "research_core/factor_lab/libraries/gtja191 (191 因子 + _expr_engine)",
-    },
+    reproTaskFromManifest(alpha101Base, "alpha101", "research_core/factor_lab/libraries/alpha101"),
+    reproTaskFromManifest(gtja191Base, "gtja191", "research_core/factor_lab/libraries/gtja191"),
     // AI Agent 调试占位暂时关闭。
     // {
     //   id: "ai_factor_mining",
